@@ -17,9 +17,7 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         "/api": {
-          target:
-            env.VITE_API_TARGET ||
-            "https://video-slice-service-production.up.railway.app",
+          target: env.VITE_API_BASE_URL || "localhost:3000",
           changeOrigin: true,
           secure: false,
         },
