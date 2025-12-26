@@ -2,14 +2,60 @@ import React from "react";
 import { motion } from "framer-motion";
 
 function Media({ asset }) {
-  // Demo：只用 image。實務上你會加上 lazy loading / srcset / blur placeholder
+  const mimeType = String(asset?.mimeType || "");
+  const isVideo = asset?.type === "video" || mimeType.startsWith("video/");
+
+  if (isVideo) return <VideoMedia asset={asset} />;
+
   return (
     <img
       src={asset.src}
-      alt={asset.id}
+      alt={asset?.name || asset?.id}
       className="h-full w-full object-cover rounded-[10px]"
       loading="lazy"
       decoding="async"
+    />
+  );
+}
+
+function VideoMedia({ asset }) {
+  const ref = React.useRef(null);
+
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const handleLoadedMetadata = () => {
+      try {
+        el.currentTime = 0.1;
+      } catch (error) {
+        void error;
+      }
+    };
+    const handleSeeked = () => {
+      try {
+        el.pause();
+      } catch (error) {
+        void error;
+      }
+    };
+
+    el.addEventListener("loadedmetadata", handleLoadedMetadata);
+    el.addEventListener("seeked", handleSeeked);
+    return () => {
+      el.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      el.removeEventListener("seeked", handleSeeked);
+    };
+  }, [asset?.src]);
+
+  return (
+    <video
+      ref={ref}
+      src={asset.src}
+      preload="metadata"
+      muted
+      playsInline
+      className="h-full w-full object-cover rounded-[10px]"
     />
   );
 }
@@ -44,7 +90,6 @@ function renderItems(block, assets) {
   }
 
   // grid
-  const cols = block.columns ?? 2;
   // Calculate total slots needed based on spans
   // Or simply render items and let grid-auto-flow handle placement,
   // but we want to apply spans to specific items.
@@ -72,12 +117,13 @@ function renderItems(block, assets) {
 }
 
 export default function BlockRenderer({ block, assets, selected, onSelect }) {
+  const MotionDiv = motion.div;
   const style = {
     borderRadius: "16px", // Fixed parent radius
   };
 
   return (
-    <motion.div
+    <MotionDiv
       layout
       className={`overflow-hidden border bg-card ${
         selected ? "ring-2 ring-primary/50" : ""
@@ -122,6 +168,6 @@ export default function BlockRenderer({ block, assets, selected, onSelect }) {
         <span>{block.type}</span>
         <span>aspect {block.aspect}</span>
       </div>
-    </motion.div>
+    </MotionDiv>
   );
 }

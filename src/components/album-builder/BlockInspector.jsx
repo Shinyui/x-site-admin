@@ -1,6 +1,7 @@
 import React from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import NumberField from "./NumberField";
 
 function clamp(n, min, max) {
@@ -12,7 +13,12 @@ function safeNumber(value, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-export default function BlockInspector({ block, allAssetIds, onChange }) {
+export default function BlockInspector({
+  block,
+  allAssetIds,
+  onChange,
+  onOpenAssetPicker,
+}) {
   return (
     <div className="grid grid-cols-1 gap-3">
       <div className="grid grid-cols-2 gap-2">
@@ -211,26 +217,40 @@ export default function BlockInspector({ block, allAssetIds, onChange }) {
               </button>
             </Badge>
           ))}
+
+          {onOpenAssetPicker && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-7 rounded-full px-3"
+              onClick={onOpenAssetPicker}
+            >
+              + 新增媒體
+            </Button>
+          )}
         </div>
 
-        <div className="mt-3 flex items-center gap-2">
-          <select
-            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-            onChange={(e) => {
-              const v = e.target.value;
-              if (!v) return;
-              onChange({ assetIds: [...block.assetIds, v] });
-              e.currentTarget.selectedIndex = 0;
-            }}
-          >
-            <option value="">+ 加入 asset</option>
-            {allAssetIds.map((id) => (
-              <option key={id} value={id}>
-                {id}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!onOpenAssetPicker && (
+          <div className="mt-3 flex items-center gap-2">
+            <select
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v) return;
+                onChange({ assetIds: [...block.assetIds, v] });
+                e.currentTarget.selectedIndex = 0;
+              }}
+            >
+              <option value="">+ 加入 asset</option>
+              {allAssetIds.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
     </div>
   );

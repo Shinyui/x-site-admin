@@ -10,82 +10,27 @@ import {
   Square,
 } from "lucide-react";
 
-// shadcn/ui
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { getPathAfterBucket, joinUrl, requireEnv } from "@/lib/utils";
 
 import BlockInspector from "@/components/album-builder/BlockInspector";
 import BlockRenderer from "@/components/album-builder/BlockRenderer";
-
-// ---------------------------
-// Demo Seed Data
-// ---------------------------
-
-const seedAssets = {
-  img_001: {
-    id: "img_001",
-    type: "image",
-    src: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1400&q=80",
-    width: 1400,
-    height: 875,
-  },
-  img_002: {
-    id: "img_002",
-    type: "image",
-    src: "https://images.unsplash.com/photo-1471879832106-c7ab9e0cee23?auto=format&fit=crop&w=1400&q=80",
-    width: 1400,
-    height: 933,
-  },
-  img_003: {
-    id: "img_003",
-    type: "image",
-    src: "https://images.unsplash.com/photo-1520975661595-6453be3f7070?auto=format&fit=crop&w=1400&q=80",
-    width: 1400,
-    height: 933,
-  },
-};
-
-const seedPage = {
-  pageId: "album_001",
-  title: "Sample Album",
-  assets: seedAssets,
-  blocks: [
-    {
-      id: "b1",
-      type: "single",
-      aspect: 1,
-      assetIds: ["img_001"],
-      spacing: { gapX: 8, gapY: 8, padX: 8, padY: 8 },
-      radius: 16,
-    },
-    {
-      id: "b2",
-      type: "split",
-      aspect: 0.6,
-      columnWeights: [7, 3],
-      assetIds: ["img_002", "img_003"],
-      spacing: { gapX: 8, gapY: 8, padX: 8, padY: 8 },
-      radius: 16,
-    },
-    {
-      id: "b3",
-      type: "grid",
-      aspect: 1,
-      columns: 2,
-      assetIds: ["img_003", "img_002", "img_001", "img_003"],
-      spacing: { gapX: 8, gapY: 8, padX: 8, padY: 8 },
-      radius: 16,
-    },
-  ],
-};
+import AssetPickerModal from "@/components/album-builder/AssetPickerModal";
 
 // ---------------------------
 // Helpers
 // ---------------------------
+
+const emptyPage = {
+  title: "",
+  assets: {},
+  blocks: [],
+};
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -101,7 +46,7 @@ function getDefaultBlock(type, allAssetIds) {
       id: `b_${uid()}`,
       type,
       aspect: 1,
-      assetIds: [pick()],
+      assetIds: [pick()].filter(Boolean),
       ...base,
     };
   }
@@ -111,7 +56,7 @@ function getDefaultBlock(type, allAssetIds) {
       type,
       aspect: 0.6,
       columnWeights: [1, 1],
-      assetIds: [pick(), pick()],
+      assetIds: [pick(), pick()].filter(Boolean),
       ...base,
     };
   }
@@ -131,16 +76,17 @@ function getDefaultBlock(type, allAssetIds) {
 // ---------------------------
 
 export default function AlbumBuilderPage() {
-  const [page, setPage] = useState(seedPage);
-  const [selectedBlockId, setSelectedBlockId] = useState(
-    seedPage.blocks[0]?.id ?? ""
-  );
+  const MotionDiv = motion.div;
+  const [page, setPage] = useState(emptyPage);
+  const [selectedBlockId, setSelectedBlockId] = useState("");
   const [jsonDraft, setJsonDraft] = useState(
-    JSON.stringify(seedPage.blocks, null, 2)
+    JSON.stringify(emptyPage.blocks, null, 2)
   );
   const [jsonError, setJsonError] = useState("");
+  const [isAssetPickerOpen, setIsAssetPickerOpen] = useState(false);
 
   const allAssetIds = useMemo(() => Object.keys(page.assets), [page.assets]);
+  const cdnBaseUrl = String(requireEnv("CDN_BASE_URL")).replace(/\/+$/, "");
 
   // Keep JSON editor in sync (only when blocks change via UI)
   useEffect(() => {
@@ -157,30 +103,24 @@ export default function AlbumBuilderPage() {
   };
 
   const addBlock = (type) => {
-    setPage((prev) => ({
-      ...prev,
-      blocks: [...prev.blocks, getDefaultBlock(type, Object.keys(prev.assets))],
-    }));
-    // select new block after state flush
-    requestAnimationFrame(() => {
-      setSelectedBlockId((_) => {
-        const next = page.blocks[page.blocks.length - 1]?.id;
-        return next || selectedBlockId;
-      });
-    });
+    const newBlock = getDefaultBlock(type, Object.keys(page.assets));
+    setPage((prev) => ({ ...prev, blocks: [...prev.blocks, newBlock] }));
+    setSelectedBlockId(newBlock.id);
   };
 
   const removeBlock = (blockId) => {
     setPage((prev) => {
+      const idx = prev.blocks.findIndex((b) => b.id === blockId);
       const nextBlocks = prev.blocks.filter((b) => b.id !== blockId);
+
+      if (selectedBlockId === blockId) {
+        const fallback =
+          prev.blocks[idx - 1]?.id || prev.blocks[idx + 1]?.id || "";
+        setSelectedBlockId(fallback);
+      }
+
       return { ...prev, blocks: nextBlocks };
     });
-    if (selectedBlockId === blockId) {
-      const idx = page.blocks.findIndex((b) => b.id === blockId);
-      const fallback =
-        page.blocks[idx - 1]?.id || page.blocks[idx + 1]?.id || "";
-      setSelectedBlockId(fallback);
-    }
   };
 
   const moveBlock = (blockId, dir) => {
@@ -218,8 +158,43 @@ export default function AlbumBuilderPage() {
     }
   };
 
+  const handlePickMedia = (file) => {
+    const fileId = file?.id;
+    const fileUrl = file?.url;
+    if (!fileId || !fileUrl) return;
+
+    const src = joinUrl(cdnBaseUrl, getPathAfterBucket(fileUrl)) || fileUrl;
+    const mimeType = file?.mimeType || file?.type || "";
+    const assetType = mimeType.startsWith("video/") ? "video" : "image";
+
+    setPage((prev) => ({
+      ...prev,
+      assets: {
+        ...prev.assets,
+        [fileId]: {
+          id: fileId,
+          type: assetType,
+          src,
+          mimeType,
+          name: file?.name || fileId,
+        },
+      },
+      blocks: prev.blocks.map((b) =>
+        b.id === selectedBlockId
+          ? { ...b, assetIds: [...(b.assetIds || []), fileId] }
+          : b
+      ),
+    }));
+    setIsAssetPickerOpen(false);
+  };
+
   return (
     <div className="space-y-6 h-[calc(100vh-4rem)] flex flex-col">
+      <AssetPickerModal
+        isOpen={isAssetPickerOpen}
+        onClose={() => setIsAssetPickerOpen(false)}
+        onPick={handlePickMedia}
+      />
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between shrink-0">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Album Builder</h1>
@@ -274,7 +249,7 @@ export default function AlbumBuilderPage() {
               >
                 <div className="flex flex-col gap-3">
                   {page.blocks.map((b, idx) => (
-                    <motion.div
+                    <MotionDiv
                       key={b.id}
                       layout
                       initial={{ opacity: 0, y: 6 }}
@@ -343,10 +318,11 @@ export default function AlbumBuilderPage() {
                             block={b}
                             allAssetIds={allAssetIds}
                             onChange={(patch) => updateBlock(b.id, patch)}
+                            onOpenAssetPicker={() => setIsAssetPickerOpen(true)}
                           />
                         </div>
                       )}
-                    </motion.div>
+                    </MotionDiv>
                   ))}
                 </div>
               </TabsContent>

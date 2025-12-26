@@ -141,8 +141,8 @@
 }
 
 /* Uppy Overrides to prevent conflicts with Shadcn/Tailwind */
-.uppy-Dashboard-inner {
-  z-index: 1 !important;
+.uppy-Dashboard--modal {
+  z-index: 9999 !important;
 }
 
 /* Ensure Uppy text is visible on dark backgrounds if theme is light */

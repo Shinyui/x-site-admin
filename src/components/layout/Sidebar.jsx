@@ -7,7 +7,6 @@ export function Sidebar() {
     { to: "/", icon: Home, label: "Dashboard" },
     { to: "/files", icon: Folder, label: "Files" },
     { to: "/album-builder", icon: LayoutTemplate, label: "Album Builder" },
-    { to: "/upload", icon: Upload, label: "Upload" },
   ];
 
   return (
